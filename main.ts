@@ -3,27 +3,27 @@ import { copyFileSync, mkdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-function sha256Hex(path: string): string {
+const here = dirname(fileURLToPath(import.meta.url));
+const source = join(here, "entry.png");
+const outDir = process.env.MAKEFUN_OUTPUT_DIR ?? "/output";
+const dest = join(outDir, "entry.png");
+
+function digest(path: string): string {
   return createHash("sha256").update(readFileSync(path)).digest("hex");
 }
 
-const repoDir: string = dirname(fileURLToPath(import.meta.url));
-const sourcePath: string = join(repoDir, "entry.png");
-const outputDir: string = process.env.MAKEFUN_OUTPUT_DIR ?? "/output";
-const destPath: string = join(outputDir, "entry.png");
+mkdirSync(outDir, { recursive: true });
+copyFileSync(source, dest);
 
-mkdirSync(outputDir, { recursive: true });
-copyFileSync(sourcePath, destPath);
-
-const size: number = statSync(destPath).size;
-if (size === 0) {
-  throw new Error(`output is empty: ${destPath}`);
+const bytes = statSync(dest).size;
+if (bytes === 0) {
+  throw new Error(`refusing empty output: ${dest}`);
+}
+if (bytes > 1048576) {
+  throw new Error(`output over the 1 MiB cap: ${bytes} bytes`);
+}
+if (digest(source) !== digest(dest)) {
+  throw new Error(`output bytes differ from source: ${dest}`);
 }
 
-const sourceHash: string = sha256Hex(sourcePath);
-const destHash: string = sha256Hex(destPath);
-if (sourceHash !== destHash) {
-  throw new Error(`output does not match source: ${destPath}`);
-}
-
-console.log(`wrote ${destPath} (${size} bytes, sha256 ${destHash})`);
+console.log(`wrote ${dest} (${bytes} bytes, sha256 ${digest(dest)})`);
